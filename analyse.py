@@ -800,11 +800,12 @@ def build_discord_message(
     active = [c for c in active_conflicts if c.get("status") in {"ongoing", "started"}]
     escalation = [c for c in active_conflicts if c.get("status") == "escalation_risk"]
 
-    active_sorted = sort_conflicts_by_tier(active)
-    escalation_sorted = sort_conflicts_by_tier(escalation)
-
     # Build analyses lookup
     analyses_by_id = {ca.get("conflict_id"): ca for ca in snapshot_analyses}
+
+    # Only show conflicts that have been scored (skip newly detected ones)
+    active_sorted = [c for c in sort_conflicts_by_tier(active) if c["id"] in analyses_by_id]
+    escalation_sorted = [c for c in sort_conflicts_by_tier(escalation) if c["id"] in analyses_by_id]
 
     # Header
     lines = [
@@ -848,10 +849,10 @@ def build_discord_message(
             if summary:
                 lines.append(f"\u2502 {summary}")
             if justification:
-                lines.append(f"\u2502 _\u00bb {justification[:200]}_")
+                lines.append(f"\u2502 _\u00bb {justification}_")
             comparison_prev = ca.get("comparison_to_previous", "")
             if comparison_prev:
-                lines.append(f"\u2502 \U0001f504 {comparison_prev[:150]}")
+                lines.append(f"\u2502 \U0001f504 {comparison_prev}")
             lines.append("")
 
     # Escalation risk section
@@ -883,7 +884,7 @@ def build_discord_message(
             if summary:
                 lines.append(f"\u2502 {summary}")
             if justification:
-                lines.append(f"\u2502 _\u00bb {justification[:200]}_")
+                lines.append(f"\u2502 _\u00bb {justification}_")
             lines.append("")
 
     if not active_sorted and not escalation_sorted:
@@ -893,11 +894,11 @@ def build_discord_message(
     if global_summary:
         lines.append("\u2500" * 40)
         lines.append(f"\U0001f4cb **Global Assessment:**")
-        lines.append(global_summary[:600])
+        lines.append(global_summary)
         lines.append("")
 
     if comparison:
-        lines.append(f"\U0001f504 **vs Previous (Run #{run_number - 1}):** {comparison[:300]}")
+        lines.append(f"\U0001f504 **vs Previous (Run #{run_number - 1}):** {comparison}")
         lines.append("")
 
     lines.append("\u2500" * 40)
