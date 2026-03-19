@@ -809,17 +809,15 @@ def build_discord_message(
 
     # Header
     lines = [
-        f"\U0001f30d **WAR ANALYSER** \u2502 Run #{run_number} \u2502 {timestamp}",
-        "\u2550" * 40,
-        "",
-        f"\U0001f6a8 **Global Risk Score: {global_risk}/100** {risk_emoji(global_risk)}",
+        f"\U0001f30d **WAR ANALYSER** \u2014 Run #{run_number} \u2014 {timestamp}",
+        f"{risk_emoji(global_risk)} **Global Risk: {global_risk}/100**",
         "",
     ]
 
     # Active conflicts section
     if active_sorted:
         lines.append(f"\u2694\ufe0f **ACTIVE CONFLICTS ({len(active_sorted)})**")
-        lines.append("")
+        lines.append("\u2015" * 35)
         for c in active_sorted:
             tier = compute_tier(c)
             ca = analyses_by_id.get(c["id"], {})
@@ -831,34 +829,30 @@ def build_discord_message(
             end_1y = ca.get("end_chance_1y", "?")
             summary = ca.get("summary", "")
             justification = ca.get("justification", "")
+            comparison_prev = ca.get("comparison_to_previous", "")
+
+            civ_fmt = f"{civ:,}" if isinstance(civ, int) else str(civ)
+            mil_fmt = f"{mil:,}" if isinstance(mil, int) else str(mil)
 
             lines.append(
-                f"{intensity_emoji(intensity)} **{c['name']}** {tier_badge(tier)} \u2502 {c.get('region', '?')}"
+                f"\n{intensity_emoji(intensity)} **{c['name']}** \u00b7 {tier_badge(tier)} \u00b7 {c.get('region', '?')}"
             )
+            lines.append(f"`{intensity_bar(intensity)}` **{intensity}/100**")
             lines.append(
-                f"\u2502 Intensity: `{intensity_bar(intensity)}` **{intensity}/100**"
-            )
-            lines.append(
-                f"\u2502 Casualties est: \U0001f464 {civ:,} civilian \u2502 \U0001fa96 {mil:,} military"
-                if isinstance(civ, int) and isinstance(mil, int)
-                else f"\u2502 Casualties est: civilian={civ} \u2502 military={mil}"
-            )
-            lines.append(
-                f"\u2502 End chance: 1w={end_1w}% \u2502 1m={end_1m}% \u2502 1y={end_1y}%"
+                f"\U0001f464 {civ_fmt} civ \u00b7 \U0001fa96 {mil_fmt} mil "
+                f"\u00b7 End: 1w={end_1w}% \u00b7 1m={end_1m}% \u00b7 1y={end_1y}%"
             )
             if summary:
-                lines.append(f"\u2502 {summary}")
+                lines.append(f"_{summary}_")
             if justification:
-                lines.append(f"\u2502 _\u00bb {justification}_")
-            comparison_prev = ca.get("comparison_to_previous", "")
+                lines.append(f"> {justification}")
             if comparison_prev:
-                lines.append(f"\u2502 \U0001f504 {comparison_prev}")
-            lines.append("")
+                lines.append(f"\U0001f504 _{comparison_prev}_")
 
     # Escalation risk section
     if escalation_sorted:
-        lines.append(f"\u26a0\ufe0f **ESCALATION RISKS ({len(escalation_sorted)})**")
-        lines.append("")
+        lines.append(f"\n\u26a0\ufe0f **ESCALATION RISKS ({len(escalation_sorted)})**")
+        lines.append("\u2015" * 35)
         for c in escalation_sorted:
             ca = analyses_by_id.get(c["id"], {})
             ob_3d = ca.get("outbreak_chance_3d", "?")
@@ -867,7 +861,6 @@ def build_discord_message(
             summary = ca.get("summary", "")
             justification = ca.get("justification", "")
 
-            # Framing based on highest outbreak chance
             max_ob = max(
                 v for v in [ob_3d, ob_1w, ob_2w] if isinstance(v, int)
             ) if any(isinstance(v, int) for v in [ob_3d, ob_1w, ob_2w]) else 0
@@ -875,34 +868,29 @@ def build_discord_message(
             if max_ob >= 50:
                 framing = "\U0001f534 **ZAGROŻENIE WYBUCHEM**"
             else:
-                framing = "\U0001f7e2 Sytuacja się stabilizuje"
+                framing = "\U0001f7e2 De-eskalacja"
 
-            lines.append(f"\U0001f30f **{c['name']}** \u2502 {c.get('region', '?')} {framing}")
-            lines.append(
-                f"\u2502 Szansa wybuchu: 3d={ob_3d}% \u2502 1w={ob_1w}% \u2502 2w={ob_2w}%"
-            )
+            lines.append(f"\n\U0001f30f **{c['name']}** \u00b7 {c.get('region', '?')} \u2014 {framing}")
+            lines.append(f"Outbreak: 3d={ob_3d}% \u00b7 1w={ob_1w}% \u00b7 2w={ob_2w}%")
             if summary:
-                lines.append(f"\u2502 {summary}")
+                lines.append(f"_{summary}_")
             if justification:
-                lines.append(f"\u2502 _\u00bb {justification}_")
-            lines.append("")
+                lines.append(f"> {justification}")
 
     if not active_sorted and not escalation_sorted:
-        lines.append("_Brak aktywnych konfliktów lub danych._\n")
+        lines.append("_No active conflicts or data available._")
 
     # Global summary
     if global_summary:
-        lines.append("\u2500" * 40)
-        lines.append(f"\U0001f4cb **Global Assessment:**")
+        lines.append(f"\n\u2015" * 35)
+        lines.append(f"\U0001f4cb **Global Assessment**")
         lines.append(global_summary)
-        lines.append("")
 
     if comparison:
-        lines.append(f"\U0001f504 **vs Previous (Run #{run_number - 1}):** {comparison}")
-        lines.append("")
+        lines.append(f"\n\U0001f504 **vs Run #{run_number - 1}:** {comparison}")
 
-    lines.append("\u2500" * 40)
-    lines.append("_This is not advice. Automated AI-generated geopolitical analysis for informational purposes only._")
+    lines.append(f"\n\u2015" * 35)
+    lines.append("_Not investment or political advice. Automated AI-generated geopolitical analysis._")
 
     return "\n".join(lines).strip()
 
