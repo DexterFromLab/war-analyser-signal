@@ -817,7 +817,7 @@ def build_discord_message(
     # Active conflicts section
     if active_sorted:
         lines.append(f"\u2694\ufe0f **ACTIVE CONFLICTS ({len(active_sorted)})**")
-        lines.append("\u2015" * 35)
+        lines.append("\u2015" * 38)
         for c in active_sorted:
             tier = compute_tier(c)
             ca = analyses_by_id.get(c["id"], {})
@@ -852,7 +852,7 @@ def build_discord_message(
     # Escalation risk section
     if escalation_sorted:
         lines.append(f"\n\u26a0\ufe0f **ESCALATION RISKS ({len(escalation_sorted)})**")
-        lines.append("\u2015" * 35)
+        lines.append("\u2015" * 38)
         for c in escalation_sorted:
             ca = analyses_by_id.get(c["id"], {})
             ob_3d = ca.get("outbreak_chance_3d", "?")
@@ -878,18 +878,22 @@ def build_discord_message(
                 lines.append(f"> {justification}")
 
     if not active_sorted and not escalation_sorted:
-        lines.append("_No active conflicts or data available._")
+        new_count = len([c for c in active_conflicts if c["id"] not in analyses_by_id])
+        if new_count:
+            lines.append(f"_Wykryto {new_count} nowych konfliktów — scores dostępne od następnego runu._")
+        else:
+            lines.append("_Brak aktywnych konfliktów._")
 
     # Global summary
     if global_summary:
-        lines.append(f"\n\u2015" * 35)
+        lines.append("\n" + "\u2015" * 38)
         lines.append(f"\U0001f4cb **Global Assessment**")
         lines.append(global_summary)
 
     if comparison:
         lines.append(f"\n\U0001f504 **vs Run #{run_number - 1}:** {comparison}")
 
-    lines.append(f"\n\u2015" * 35)
+    lines.append("\n" + "\u2015" * 38)
     lines.append("_Not investment or political advice. Automated AI-generated geopolitical analysis._")
 
     return "\n".join(lines).strip()
