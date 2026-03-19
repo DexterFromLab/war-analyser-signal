@@ -1,0 +1,46 @@
+{
+  "discord": {
+    "active": true,
+    "webhook_url": "",
+    "notify_scheduler": false,
+    "notify_claude": false
+  },
+  "scheduler_jobs": [
+    {
+      "name": "war_analysis",
+      "code": "exec(open('analyse.py').read())",
+      "mode": "daily",
+      "time_str": "08:00",
+      "date_str": "",
+      "interval_min": 1440,
+      "weekdays": [0, 1, 2, 3, 4, 5, 6],
+      "active": true
+    }
+  ],
+  "analysis": {
+    "rss_feeds": [
+      {
+        "name": "Reuters World News",
+        "url": "https://feeds.reuters.com/Reuters/worldNews",
+        "max_items": 20
+      },
+      {
+        "name": "Al Jazeera English",
+        "url": "https://www.aljazeera.com/xml/rss/all.xml",
+        "max_items": 20
+      },
+      {
+        "name": "BBC World News",
+        "url": "https://feeds.bbci.co.uk/news/world/rss.xml",
+        "max_items": 15
+      }
+    ],
+    "claude": {
+      "model": null,
+      "timeout": 300,
+      "max_budget_usd": 1.0,
+      "system_prompt": null
+    },
+    "history_lookback": 10
+  }
+}
