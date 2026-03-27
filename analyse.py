@@ -902,11 +902,11 @@ def build_discord_message(
 def build_fallback_discord(raw_text: str, timestamp: str, run_number: int) -> str:
     return (
         f"\u2753 **WAR ANALYSER** \u2502 Run #{run_number} \u2502 {timestamp}\n"
-        f"\u2550" * 40 + "\n\n"
-        f"\U0001f4dd **Analysis (unstructured):**\n"
-        f"{(raw_text or 'Analysis unavailable.')[:1500]}\n"
-        f"\u2500" * 40 + "\n"
-        "_This is not advice. Automated AI-generated geopolitical analysis._"
+        + "\u2550" * 40 + "\n\n"
+        + "\U0001f4dd **Analysis (unstructured):**\n"
+        + f"{(raw_text or 'Analysis unavailable.')[:1500]}\n"
+        + "\u2500" * 40 + "\n"
+        + "_This is not advice. Automated AI-generated geopolitical analysis._"
     )
 
 
@@ -1042,12 +1042,16 @@ def main():
 
     # Step 6: Should notify?
     log.info("[6/7] Evaluating significance...")
-    notify, notify_reason = should_notify(history, result if is_structured else {})
 
     discord_msg = ""
 
     if is_structured:
         save_snapshot(run_id, timestamp, snapshot_analyses, active_conflicts)
+        notify, notify_reason = should_notify(history, result)
+    else:
+        # Analysis failed (timeout/error) — don't trigger false notification
+        notify = False
+        notify_reason = "analysis failed (unstructured response)"
 
     if not notify:
         log.info("SKIP — %s", notify_reason)
@@ -1058,12 +1062,14 @@ def main():
         trim_history_files()
         # Short diagnostic
         risk = result.get("global_risk_score", "?") if is_structured else "?"
+        raw_reason = result.get("raw_text", "")[:100] if not is_structured else ""
         diag = (
             f"\U0001f504 **War Check** \u2502 Run #{run_number} \u2502 {timestamp}\n"
-            f"_{notify_reason} \u2014 no update sent_ | Global risk: {risk}/100"
+            f"_{notify_reason} \u2014 no update sent_"
+            + (f" | Global risk: {risk}/100" if is_structured else f" | Error: {raw_reason}")
         )
         send_discord(config, diag)
-        log.info("Pipeline complete (no significant change).")
+        log.info("Pipeline complete (%s).", notify_reason)
         return
 
     log.info("NOTIFY — %s", notify_reason)
@@ -1071,19 +1077,13 @@ def main():
     # Step 7: Build message, translate, send
     log.info("[7/7] Building message and sending...")
 
-    if is_structured:
-        discord_msg = build_discord_message(
-            result, timestamp, run_number, active_conflicts, snapshot_analyses, history
-        )
-    else:
-        discord_msg = build_fallback_discord(
-            result.get("raw_text", ""), timestamp, run_number
-        )
+    discord_msg = build_discord_message(
+        result, timestamp, run_number, active_conflicts, snapshot_analyses, history
+    )
 
-    if is_structured:
-        save_history(result, run_number, run_id, timestamp,
-                     active_conflicts, snapshot_analyses, model, cost, discord_msg)
-        save_conclusion(result, run_number, timestamp, active_conflicts, snapshot_analyses)
+    save_history(result, run_number, run_id, timestamp,
+                 active_conflicts, snapshot_analyses, model, cost, discord_msg)
+    save_conclusion(result, run_number, timestamp, active_conflicts, snapshot_analyses)
     trim_history_files()
 
     # Translate to Polish
