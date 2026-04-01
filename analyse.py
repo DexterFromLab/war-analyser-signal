@@ -961,14 +961,15 @@ def translate_to_polish(english_msg: str, claude_cfg: dict) -> str:
     return text
 
 
-def send_discord(config: dict, message: str):
+def send_discord(config: dict, message: str, webhook_url: str | None = None):
     discord_cfg = config.get("discord", {})
-    if not discord_cfg.get("active") or not discord_cfg.get("webhook_url"):
+    url = webhook_url or discord_cfg.get("webhook_url")
+    if not discord_cfg.get("active") or not url:
         log.info("Discord not configured — skipping.")
         return
-    notifier = DiscordNotifier(webhook_url=discord_cfg["webhook_url"], active=True)
+    notifier = DiscordNotifier(webhook_url=url, active=True)
     notifier.send_sync(message)
-    log.info("Discord notification sent.")
+    log.info("Discord notification sent to %s.", url[-20:])
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1053,6 +1054,8 @@ def main():
         notify = False
         notify_reason = "analysis failed (unstructured response)"
 
+    webhook_pl = config.get("discord", {}).get("webhook_url_pl")
+
     if not notify:
         log.info("SKIP — %s", notify_reason)
         if is_structured:
@@ -1063,12 +1066,26 @@ def main():
         # Short diagnostic
         risk = result.get("global_risk_score", "?") if is_structured else "?"
         raw_reason = result.get("raw_text", "")[:100] if not is_structured else ""
-        diag = (
+        diag_en = (
             f"\U0001f504 **War Check** \u2502 Run #{run_number} \u2502 {timestamp}\n"
             f"_{notify_reason} \u2014 no update sent_"
             + (f" | Global risk: {risk}/100" if is_structured else f" | Error: {raw_reason}")
         )
-        send_discord(config, diag)
+        send_discord(config, diag_en)
+
+        if webhook_pl:
+            reason_pl_map = {
+                "no significant change": "brak istotnych zmian",
+                "analysis failed (unstructured response)": "analiza nieudana (niestrukturalna odpowiedź)",
+            }
+            reason_pl = reason_pl_map.get(notify_reason, notify_reason)
+            diag_pl = (
+                f"\U0001f504 **Sprawdzenie wojny** \u2502 Run #{run_number} \u2502 {timestamp}\n"
+                f"_{reason_pl} \u2014 brak aktualizacji_"
+                + (f" | Ryzyko globalne: {risk}/100" if is_structured else f" | Błąd: {raw_reason}")
+            )
+            send_discord(config, diag_pl, webhook_url=webhook_pl)
+
         log.info("Pipeline complete (%s).", notify_reason)
         return
 
@@ -1077,30 +1094,31 @@ def main():
     # Step 7: Build message, translate, send
     log.info("[7/7] Building message and sending...")
 
-    discord_msg = build_discord_message(
+    discord_msg_en = build_discord_message(
         result, timestamp, run_number, active_conflicts, snapshot_analyses, history
     )
 
     save_history(result, run_number, run_id, timestamp,
-                 active_conflicts, snapshot_analyses, model, cost, discord_msg)
+                 active_conflicts, snapshot_analyses, model, cost, discord_msg_en)
     save_conclusion(result, run_number, timestamp, active_conflicts, snapshot_analyses)
     trim_history_files()
 
-    # Translate to Polish
-    log.info("Translating to Polish...")
-    discord_msg_pl = translate_to_polish(discord_msg, claude_cfg)
-
-    if discord_msg_pl:
-        separator = "\n\n\U0001f1f5\U0001f1f1 **WERSJA POLSKA:**\n" + "\u2550" * 40 + "\n\n"
-        discord_full = discord_msg + separator + discord_msg_pl
-    else:
-        discord_full = discord_msg
-
+    # Send EN
     log.info("\u2500" * 60)
-    log.info("Discord message:\n%s", discord_full)
+    log.info("Discord EN message:\n%s", discord_msg_en)
     log.info("\u2500" * 60)
+    send_discord(config, discord_msg_en)
 
-    send_discord(config, discord_full)
+    # Translate and send PL
+    if webhook_pl:
+        log.info("Translating to Polish...")
+        discord_msg_pl = translate_to_polish(discord_msg_en, claude_cfg)
+        if discord_msg_pl:
+            log.info("Translation complete.")
+            send_discord(config, discord_msg_pl, webhook_url=webhook_pl)
+        else:
+            log.warning("Translation failed — PL channel skipped.")
+
     log.info("Pipeline complete.")
 
 
