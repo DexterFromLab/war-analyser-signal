@@ -640,6 +640,13 @@ You are a geopolitical analyst. Analyse ALL data above.
 - Compare to your previous analysis (what changed, was your prediction correct?)
 
 **Detect new conflicts** from the news that are NOT in the known list yet.
+STRICT CRITERIA for new conflicts — ALL must be met:
+- Must involve armed violence or direct military action (not diplomatic tensions, economic crises, natural disasters, single criminal incidents, political unrest, or accidents)
+- Must be sustained or recurring (not a one-off event like an explosion or attack)
+- Must involve at least two organized parties (state militaries, rebel groups, militias — not lone actors)
+- Do NOT add: energy crises, government shutdowns, diplomatic disputes, cooperation pacts, earthquake/disaster relief, industrial strikes, single terrorist attacks, political purges
+- When in doubt, do NOT add — it can be added in a future run if it escalates
+- Prefer expanding an existing conflict's scope over creating a new entry (e.g., Houthi attacks are part of the Iran-Israel theater)
 
 **Mark ended conflicts** if news confirms a conflict has ended (ceasefire, peace treaty, etc.).
 
@@ -675,7 +682,7 @@ IMPORTANT:
 - comparison_to_previous must reference your own previous scores/assessments
 """
 
-    system_prompt = "You are a senior geopolitical analyst. You ALWAYS respond with valid JSON only. Never use markdown formatting, never add text outside the JSON object. Be precise with numbers and cite sources in justifications."
+    system_prompt = "You are a senior geopolitical analyst. You track ARMED CONFLICTS ONLY. Economic crises, diplomatic tensions, natural disasters, and domestic political events are OUT OF SCOPE even if they appear in the news feed. Be conservative — fewer high-quality conflict entries are better than many marginal ones. You ALWAYS respond with valid JSON only. Never use markdown formatting, never add text outside the JSON object. Be precise with numbers and cite sources in justifications."
 
     log.debug("=" * 40 + " PROMPT " + "=" * 40)
     log.debug(prompt)
