@@ -951,7 +951,7 @@ def translate_to_polish(english_msg: str, claude_cfg: dict) -> str:
     claude = ClaudeCode(
         system_prompt=system,
         timeout=claude_cfg.get("timeout", 300),
-        max_budget_usd=0.30,
+        max_budget_usd=0.60,
     )
     resp = claude.ask(prompt)
     text = resp.text.strip() if resp.text else ""
