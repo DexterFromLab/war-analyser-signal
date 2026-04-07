@@ -920,12 +920,29 @@ def build_fallback_discord(raw_text: str, timestamp: str, run_number: int) -> st
 # ═══════════════════════════════════════════════════════════════════════════
 # Notification logic
 # ═══════════════════════════════════════════════════════════════════════════
+def _load_snapshot_for_run(run_id: str) -> dict[str, int]:
+    """Load intensity scores from snapshot CSV for a given run_id. Returns {conflict_id: intensity}."""
+    if not SNAPSHOTS_CSV.exists():
+        return {}
+    scores = {}
+    with open(SNAPSHOTS_CSV, "r", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            if row.get("run_id") == run_id:
+                try:
+                    scores[row["conflict_id"]] = int(row["intensity_score"])
+                except (ValueError, KeyError):
+                    pass
+    return scores
+
+
 def should_notify(history: list[dict], result: dict) -> tuple[bool, str]:
     if not history:
         return True, "first run"
 
+    prev = history[-1]
+
     try:
-        last_ts = datetime.strptime(history[-1]["timestamp"], "%Y-%m-%d %H:%M:%S")
+        last_ts = datetime.strptime(prev["timestamp"], "%Y-%m-%d %H:%M:%S")
         elapsed = datetime.now() - last_ts
         if elapsed.total_seconds() >= 7 * 24 * 3600:
             return True, f"weekly summary ({elapsed.days}d since last)"
@@ -942,12 +959,56 @@ def should_notify(history: list[dict], result: dict) -> tuple[bool, str]:
 
     # Global risk score shifted by 10+
     try:
-        prev_risk = int(history[-1].get("global_risk_score", 0))
+        prev_risk = int(prev.get("global_risk_score", 0))
         new_risk = int(result.get("global_risk_score", 0))
         if abs(new_risk - prev_risk) >= 10:
             return True, f"global risk shifted {abs(new_risk - prev_risk)} pts ({prev_risk} -> {new_risk})"
     except (ValueError, TypeError):
         pass
+
+    # Per-conflict intensity shift >=15 vs previous run
+    new_conflicts = {c["conflict_id"]: c for c in result.get("conflicts", [])}
+    prev_scores = _load_snapshot_for_run(prev.get("run_id", ""))
+    if prev_scores and new_conflicts:
+        for cid, analysis in new_conflicts.items():
+            try:
+                new_i = int(analysis.get("intensity_score", 0))
+                old_i = prev_scores.get(cid)
+                if old_i is not None and abs(new_i - old_i) >= 15:
+                    name = analysis.get("summary", cid)[:40]
+                    return True, f"conflict intensity shifted {abs(new_i - old_i)} pts: {name} ({old_i} -> {new_i})"
+            except (ValueError, TypeError):
+                pass
+
+    # Gradual drift: compare vs last *notified* run (non-empty discord_message)
+    last_notified = None
+    for h in reversed(history):
+        if h.get("discord_message"):
+            last_notified = h
+            break
+
+    if last_notified and last_notified is not prev:
+        # Global risk drift vs last notified
+        try:
+            notified_risk = int(last_notified.get("global_risk_score", 0))
+            new_risk = int(result.get("global_risk_score", 0))
+            if abs(new_risk - notified_risk) >= 10:
+                return True, f"global risk drifted {abs(new_risk - notified_risk)} pts since last notification ({notified_risk} -> {new_risk})"
+        except (ValueError, TypeError):
+            pass
+
+        # Per-conflict intensity drift vs last notified
+        notified_scores = _load_snapshot_for_run(last_notified.get("run_id", ""))
+        if notified_scores and new_conflicts:
+            for cid, analysis in new_conflicts.items():
+                try:
+                    new_i = int(analysis.get("intensity_score", 0))
+                    notified_i = notified_scores.get(cid)
+                    if notified_i is not None and abs(new_i - notified_i) >= 15:
+                        name = analysis.get("summary", cid)[:40]
+                        return True, f"conflict intensity drifted {abs(new_i - notified_i)} pts since last notification: {name} ({notified_i} -> {new_i})"
+                except (ValueError, TypeError):
+                    pass
 
     return False, "no significant change"
 
